@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client'
-import stringSimilarity from 'string-similarity' // Need to install this or mock it
 
 const prisma = new PrismaClient()
 

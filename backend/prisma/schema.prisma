@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// We use sqlite for the local hackathon build environment since Postgres is not installed,
+// but the schema is designed for seamless migration to PostgreSQL (just change provider to "postgresql").
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Family {
+  family_id            String             @id
+  status               String             // ACTIVE, PENDING_VERIFICATION, SPLIT
+  address              String
+  district             String
+  taluka               String
+  village_or_ward      String
+  household_type       String
+  creation_date        DateTime           @default(now())
+  last_verified_date   DateTime?
+  verification_status  String
+  
+  members              FamilyMembership[]
+  attributes           FamilyAttribute[]
+  benefits             Benefit[]
+  life_events          LifeEvent[]
+}
+
+model Member {
+  member_id            String             @id
+  name                 String
+  date_of_birth        DateTime
+  gender               String
+  life_status          String             // ALIVE, DECEASED
+  contact_reference    String?
+  identity_reference   String?            // Hashed or tokenized reference
+  
+  memberships          FamilyMembership[]
+  benefits             Benefit[]
+  life_events          LifeEvent[]
+}
+
+model FamilyMembership {
+  id                    String    @id @default(uuid())
+  family_id             String
+  member_id             String
+  relationship          String
+  membership_start_date DateTime
+  membership_end_date   DateTime?
+  residency_status      String
+  source                String
+  verification_status   String
+
+  family                Family    @relation(fields: [family_id], references: [family_id])
+  member                Member    @relation(fields: [member_id], references: [member_id])
+}
+
+model FamilyAttribute {
+  id                    String    @id @default(uuid())
+  family_id             String
+  attribute_key         String    // CASTE, BPL, HOUSE_STATUS, INCOME, TOILET_STATUS, LAND_HOLDING
+  attribute_value       String    // Stored as string, parsed as needed
+  source_department     String
+  source_record_id      String?
+  confidence_score      Float?
+  verification_status   String
+  effective_date        DateTime
+  last_updated          DateTime  @updatedAt
+
+  family                Family    @relation(fields: [family_id], references: [family_id])
+}
+
+model Scheme {
+  scheme_id             String    @id
+  department            String
+  name                  String
+  description           String
+  status                String
+  
+  benefits              Benefit[]
+}
+
+model EligibilityResult {
+  id                    String    @id @default(uuid())
+  family_id             String
+  member_id             String?
+  scheme_id             String
+  status                String    // ELIGIBLE, INELIGIBLE, NEEDS_REVIEW
+  reasons               String    // JSON stringified reasons
+  calculated_at         DateTime  @default(now())
+}
+
+model Benefit {
+  benefit_id            String    @id @default(uuid())
+  family_id             String
+  member_id             String?
+  scheme_id             String
+  department            String
+  benefit_status        String    // ACTIVE, SANCTIONED, STOPPED
+  start_date            DateTime
+  end_date              DateTime?
+  amount                Float?
+  payment_reference     String?
+
+  family                Family    @relation(fields: [family_id], references: [family_id])
+  member                Member?   @relation(fields: [member_id], references: [member_id])
+  scheme                Scheme    @relation(fields: [scheme_id], references: [scheme_id])
+}
+
+model LifeEvent {
+  event_id              String    @id @default(uuid())
+  event_type            String    // BIRTH, DEATH, MARRIAGE, MIGRATION
+  family_id             String
+  member_id             String?
+  event_date            DateTime
+  status                String    // REPORTED, VERIFIED, PROCESSED
+  evidence_reference    String?
+  created_at            DateTime  @default(now())
+
+  family                Family    @relation(fields: [family_id], references: [family_id])
+  member                Member?   @relation(fields: [member_id], references: [member_id])
+}
+
+model AuditLog {
+  log_id                String    @id @default(uuid())
+  actor_id              String
+  actor_role            String
+  action                String
+  entity_type           String
+  entity_id             String
+  fields_accessed       String    // JSON stringified fields
+  purpose               String
+  timestamp             DateTime  @default(now())
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  username              String    @unique
+  password_hash         String
+  role                  String    // CITIZEN, ADMIN
+  family_id             String?   // If citizen
+}
